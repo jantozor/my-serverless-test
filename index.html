@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>Man to Arrow Animation with Movement</title>
+    <style>
+        body {
+            background: white;
+            margin: 0;
+            height: 100vh;
+            overflow: hidden;
+            position: relative;
+            /* cursor: pointer; */
+        }
+
+        #anim {
+            position: relative;
+            height: auto;
+            width: 100%;
+            image-rendering: auto;
+            transform: translateZ(0);
+            will-change: transform;
+            filter: blur(0.5px);
+            transition: width 4s ease, transform 1s ease;
+        }
+
+        /* class to double video size */
+        #anim.reduce {
+            width: 50px;
+        }
+
+        .moving-media {
+            position: absolute;
+            width: 0px;
+            height: 0px;
+            top: 40%;
+            left: 40%;
+            transform: translate(-50%, -50%) rotate(0deg);
+            transform-origin: center center;
+            transition: width 3s ease, height 3s ease, transform 1s ease, top 3s ease, left 3s ease;
+        }
+
+        .grow {
+            width: 60px;
+            height: 60px;
+        }
+
+        .shrink {
+            width: 0px;
+            height: 0px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="moving-media grow"><video id="anim" preload="auto" playsinline></video></div>
+</body>
+<script>
+    const video = document.getElementById('anim');
+    // Video sources
+    const animation1 = 'man-arrow.webm';  // Still postition -> Move position animation
+    const animation2 = 'arrow-man.webm';  // Move position -> Still postition
+    // Track current state
+    let state = 'move'; // 'still', 'transforming', 'move'
+    let callIDmove = 0;
+    let lastPosx = parseFloat(window.getComputedStyle(document.querySelector(".moving-media.grow")).getPropertyValue("left")) || 0;
+    let lastPosy = parseFloat(window.getComputedStyle(document.querySelector(".moving-media.grow")).getPropertyValue("top")) || 0;
+
+    document.addEventListener('DOMContentLoaded', () => {
+        video.src = animation2;
+        video.load();
+        video.muted = true;
+        video.pause();
+        transformToMan();
+    });
+    document.addEventListener('click', function (event) {
+        const x = event.clientX;
+        const y = event.clientY;
+        moveMedia(x, y);
+    });
+    async function transformToArrow() {
+        if (state === 'move' || state === 'transforming to move') return;
+        if (state === 'transforming to still') {
+            // If in the middle of transforming to still, wait for it to finish
+            await new Promise(resolve => {
+                video.onended = () => {
+                    resolve();
+                };
+            });
+        }
+        state = 'transforming to move';
+        video.src = animation1;
+        video.load();
+        video.play();
+
+        // Grow the video
+        video.classList.remove('reduce');
+
+        video.onended = () => {
+            state = 'move';
+            // After transformation show move frame paused (optional)
+            video.src = animation2; // pause on move frame
+            video.load();
+            video.pause();
+        };
+    }
+    function transformToMan() {
+        if (state !== 'move') return;
+        state = 'transforming to still';
+        video.src = animation2;
+        video.load();
+        video.play();
+
+        // Shrink the video back
+        video.classList.add('reduce');
+
+        try {
+            video.onended = () => {
+                state = 'still';
+                video.src = animation1;
+                video.load();
+                video.pause();
+            };
+        }
+        catch {
+            state = 'still';
+            video.src = animation1;
+            video.load();
+            video.pause();
+        }
+    }
+    async function moveMedia(x, y) {
+        const moveElm = document.querySelector(".moving-media.grow")
+        const callId = ++callIDmove;
+        await transformToArrow();
+        if (moveElm) {
+            let angle = 0;
+            const dx = x - lastPosx;
+            const dy = y - lastPosy;
+            angle = Math.atan2(dy, dx) * (180 / Math.PI) - 90;
+            await new Promise(resolve => {
+                moveElm.addEventListener("transitionend", resolve, { once: true });
+                moveElm.style.transform = `translate(-50%, -50%) rotate(${angle}deg)`;
+            });
+            lastPosx = x;
+            lastPosy = y;
+            moveElm.style.left = `${x}px`;
+            moveElm.style.top = `${y}px`;
+            await new Promise(r => setTimeout(r, 3000));
+            if (callId === callIDmove) {
+                transformToMan();
+                moveElm.style.transform = `translate(-50%, -50%) rotate(${0}deg)`;
+            }
+        }
+    }
+</script>
+</html>
